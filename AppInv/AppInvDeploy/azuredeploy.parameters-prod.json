@@ -1,0 +1,43 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storage": {
+      "value": {
+        "sku": "Standard_LRS"
+      }
+    },
+    "appServicePlan": {
+      "value": {
+        "sku": "S1",
+        "capacity": 1
+      }
+    },
+    "webApp": {
+      "value": [
+        {
+          "name": "webappinv",
+          "unauthenticatedClientAction": "AllowAnonymous",
+          "authActiveDirectoryClientId": "",
+          "allowPublicAccess": true
+        }
+      ]
+    },
+    "sqlDb": {
+      "value": [
+        {
+          "name": "appinv",
+          "pricingTier": "S0"
+        }
+      ]
+    },
+    "SASToken": {
+      "reference": {
+        "keyVault": {
+          "id": ""
+        },
+        "secretName": "templates-read"
+      }
+    }
+  }
+}

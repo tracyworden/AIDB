@@ -1,0 +1,142 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storage": {
+      "type": "object"
+    },
+    "appServicePlan": {
+      "type": "object"
+    },
+    "webApp": {
+      "type": "array"
+    },
+    "sqlDb": {
+      "type": "array"
+    },
+    "SASToken": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "templateLocation": "https://agarmdeploymentprod.blob.core.windows.net/templates/1.0.0/",
+    "storageAccount": "[toLower(concat(resourceGroup().tags.NamingPrefix, 'sa'))]",
+    "AppServicePlan": "[toLower(concat(resourceGroup().tags.NamingPrefix, '-asp'))]",
+    "SQLServer": "[toLower(concat(resourceGroup().tags.NamingPrefix, '-sql'))]",
+    "apiVersion": "2016-09-01",
+    "location": "North Central US",
+    "appinlocation": "South Central US"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', variables('storageAccount'))]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [],
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'storage-account.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[variables('storageAccount')]" },
+          "location": { "value": "[variables('location')]" },
+          "sku": { "value": "[parameters('storage').sku]" }
+        },
+        "mode": "incremental"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', variables('storageAccount'), '_appinsights', copyIndex())]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [],
+      "copy": {
+        "name": "appinsights",
+        "count": "[length(parameters('webApp'))]"
+      },
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'app-insights.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[concat(parameters('webApp')[copyIndex()].name, '-ai')]" },
+          "location": { "value": "[variables('appinlocation')]" }
+        },
+        "mode": "incremental"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', variables('AppServicePlan'))]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [],
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'app-service-plan.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[variables('AppServicePlan')]" },
+          "location": { "value": "[variables('location')]" },
+          "sku": { "value": "[parameters('appServicePlan').sku]" },
+          "capacity": { "value": "[parameters('appServicePlan').capacity]" }
+        },
+        "mode": "incremental"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', parameters('webApp')[copyIndex()].name)]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', concat(deployment().name, '_', variables('AppServicePlan')))]",
+        "[resourceId('Microsoft.Resources/deployments', concat(deployment().name, '_', variables('storageAccount'), '_appinsights', copyIndex()))]"
+      ],
+      "copy": {
+        "name": "websites",
+        "count": "[length(parameters('webApp'))]"
+      },
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'web-app.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[parameters('webApp')[copyIndex()].name]" },
+          "location": { "value": "[variables('location')]" },
+          "appServicePlan": { "value": "[variables('AppServicePlan')]" },
+          "unauthenticatedClientAction": { "value": "[parameters('webApp')[copyIndex()].unauthenticatedClientAction]" },
+          "authActiveDirectoryClientId": { "value": "[parameters('webApp')[copyIndex()].authActiveDirectoryClientId]" },
+          "allowPublicAccess": { "value": "[parameters('webApp')[copyIndex()].allowPublicAccess]" },
+          "netFrameworkVersion": { "value": "v4.6" }
+        },
+        "mode": "incremental"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', variables('SQLServer'))]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [ "[resourceId('Microsoft.Resources/deployments', concat(deployment().name, '_', variables('storageAccount')))]" ],
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'sql-server.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[variables('SQLServer')]" },
+          "location": { "value": "[variables('location')]" },
+          "auditStorageAccount": { "value": "[variables('storageAccount')]" }
+        },
+        "mode": "incremental"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(deployment().name, '_', parameters('sqlDb')[copyIndex()].name)]",
+      "apiVersion": "[variables('apiVersion')]",
+      "dependsOn": [ "[resourceId('Microsoft.Resources/deployments', concat(deployment().name, '_', variables('SQLServer')))]" ],
+      "copy": {
+        "name": "databases",
+        "count": "[length(parameters('sqlDb'))]"
+      },
+      "properties": {
+        "templateLink": { "uri": "[concat(variables('templateLocation'), 'sql-db.json', parameters('SASToken'))]" },
+        "parameters": {
+          "name": { "value": "[parameters('sqlDb')[copyIndex()].name]" },
+          "location": { "value": "[variables('location')]" },
+          "server": { "value": "[variables('SQLServer')]" },
+          "pricingTier": { "value": "[parameters('sqlDb')[copyIndex()].pricingTier]" }
+        },
+        "mode": "incremental"
+      }
+    }
+  ]
+}
